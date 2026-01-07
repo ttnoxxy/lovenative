@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, ImageBackground, Dimensions, Modal, Platform, Animated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ImageBackground, Dimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import * as Haptics from 'expo-haptics';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -31,10 +30,10 @@ type RegistrationScreenProp = NativeStackNavigationProp<RootStackParamList, 'Reg
 
 export default function RegistrationScreen() {
   const [date, setDate] = useState<string | null>(null);
-  const [showCalendar, setShowCalendar] = useState(false);
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['75%'], []);
+  const snapPoints = useMemo(() => ['90%'], []);
   const lastHaptic = useRef<number>(0);
 
   const navigation = useNavigation<RegistrationScreenProp>();
@@ -55,65 +54,13 @@ export default function RegistrationScreen() {
     }
   }, []);
 
-  // --- Анимация для iOS ---
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const dragY = useRef(new Animated.Value(0)).current;
-
-  const onGestureEvent = useCallback((e: any) => {
-    const t = e?.nativeEvent?.translationY ?? 0;
-    dragY.setValue(Math.max(0, t));
-  }, [dragY]);
-
   const closeCalendar = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(dragY, {
-          toValue: 400,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setShowCalendar(false);
-        dragY.setValue(0);
-      });
-    } else {
-      bottomSheetModalRef.current?.dismiss();
-    }
-  }, [fadeAnim]);
-
-  const onHandlerStateChange = useCallback((e: any) => {
-    const { state, translationY, velocityY } = e.nativeEvent || {};
-    if (state === State.END) {
-      if (translationY > 60 || velocityY > 1200) {
-        closeCalendar();
-      } else {
-        Animated.spring(dragY, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 0,
-        }).start();
-      }
-    }
-  }, [closeCalendar, dragY]);
+    bottomSheetModalRef.current?.dismiss();
+  }, []);
 
   const openCalendar = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      setShowCalendar(true);
-      dragY.setValue(0);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      bottomSheetModalRef.current?.present();
-    }
-  }, [fadeAnim]);
+    bottomSheetModalRef.current?.present();
+  }, []);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -146,7 +93,6 @@ export default function RegistrationScreen() {
         source={{ uri: 'https://www.transparenttextures.com/patterns/tactile-noise-light.png' }}
         style={styles.noiseOverlay}
         resizeMode="repeat"
-        pointerEvents="none"
       />
 
       <View style={styles.content}>
@@ -204,95 +150,47 @@ export default function RegistrationScreen() {
         </Pressable>
       </View>
 
-      {/* iOS Modal с плавным Fade */}
-      {Platform.OS === 'ios' ? (
-        <Modal
-          visible={showCalendar}
-          animationType="none"
-          transparent
-          onRequestClose={closeCalendar}
-        >
-          <Animated.View style={[styles.modalOverlay, { opacity: fadeAnim }]}>
-            <BlurView intensity={25} tint="light" style={StyleSheet.absoluteFill} />
-            <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
-              <Animated.View style={[styles.modalCard, { transform: [{ translateY: dragY }] }]}>
-                <View style={styles.dragHandle} />
-                <Text style={styles.modalTitle}>Когда всё началось?</Text>
+      <BottomSheetModal
+        ref={bottomSheetModalRef}
+        index={0}
+        snapPoints={snapPoints}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.sheetBackground}
+        handleIndicatorStyle={styles.handle}
+        enablePanDownToClose
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.modalTitle}>Когда всё началось?</Text>
 
-                <Calendar
-                  onDayPress={(day) => {
-                    setDate(day.dateString);
-                    hapticSelection();
-                  }}
-                  markedDates={date ? { [date]: { selected: true, selectedColor: '#FF9A9E' } } : {}}
-                  maxDate={new Date().toISOString().split('T')[0]}
-                  theme={{
-                    backgroundColor: 'transparent',
-                    calendarBackground: 'transparent',
-                    textSectionTitleColor: '#999',
-                    selectedDayBackgroundColor: '#FF9A9E',
-                    selectedDayTextColor: '#ffffff',
-                    todayTextColor: '#FF9A9E',
-                    dayTextColor: '#2d4150',
-                    textDisabledColor: '#d9e1e8',
-                    arrowColor: '#FF9A9E',
-                    monthTextColor: '#111',
-                    textDayFontWeight: '500',
-                    textMonthFontWeight: '700',
-                    textDayHeaderFontWeight: '600',
-                  }}
-                />
+          <Calendar
+            onDayPress={(day) => {
+              setDate(day.dateString);
+              hapticSelection();
+            }}
+            markedDates={date ? { [date]: { selected: true, selectedColor: '#FF9A9E' } } : {}}
+            maxDate={todayStr}
+            theme={{
+              backgroundColor: 'transparent',
+              calendarBackground: 'transparent',
+              textSectionTitleColor: '#999',
+              selectedDayBackgroundColor: '#FF9A9E',
+              selectedDayTextColor: '#ffffff',
+              todayTextColor: '#FF9A9E',
+              dayTextColor: '#2d4150',
+              textDisabledColor: '#d9e1e8',
+              arrowColor: '#FF9A9E',
+              monthTextColor: '#111',
+              textDayFontWeight: '500',
+              textMonthFontWeight: '700',
+              textDayHeaderFontWeight: '600',
+            }}
+          />
 
-                <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
-                  <Text style={styles.modalConfirmText}>Готово</Text>
-                </Pressable>
-              </Animated.View>
-            </PanGestureHandler>
-          </Animated.View>
-        </Modal>
-      ) : (
-        <BottomSheetModal
-          ref={bottomSheetModalRef}
-          index={0}
-          snapPoints={snapPoints}
-          backdropComponent={renderBackdrop}
-          backgroundStyle={styles.sheetBackground}
-          handleIndicatorStyle={styles.handle}
-          enablePanDownToClose
-        >
-          <View style={styles.sheetContent}>
-            <Text style={styles.modalTitle}>Когда всё началось?</Text>
-
-            <Calendar
-              onDayPress={(day) => {
-                setDate(day.dateString);
-                hapticSelection();
-              }}
-              markedDates={date ? { [date]: { selected: true, selectedColor: '#FF9A9E' } } : {}}
-              maxDate={new Date().toISOString().split('T')[0]}
-              theme={{
-                backgroundColor: 'transparent',
-                calendarBackground: 'transparent',
-                textSectionTitleColor: '#999',
-                selectedDayBackgroundColor: '#FF9A9E',
-                selectedDayTextColor: '#ffffff',
-                todayTextColor: '#FF9A9E',
-                dayTextColor: '#2d4150',
-                textDisabledColor: '#d9e1e8',
-                arrowColor: '#FF9A9E',
-                monthTextColor: '#111',
-                textDayFontWeight: '500',
-                textMonthFontWeight: '700',
-                textDayHeaderFontWeight: '600',
-              }}
-            />
-
-            <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
-              <Text style={styles.modalConfirmText}>Готово</Text>
-            </Pressable>
-          </View>
-        </BottomSheetModal>
-      )}
+          <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
+            <Text style={styles.modalConfirmText}>Готово</Text>
+          </Pressable>
+        </View>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -358,7 +256,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 18,
     borderRadius: 22,
-    backgroundColor: '#2e1e00ff',
+    backgroundColor: '#2e1e00',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',

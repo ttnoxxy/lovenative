@@ -7,7 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { TamaguiProvider, Theme, Paragraph, YStack, Button } from 'tamagui';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import tamaguiConfig from './tamagui.config.ts';
+import tamaguiConfig from './tamagui.config';
 
 import RegistrationScreen from './src/screens/Auth/RegistrationScreen';
 import PartnerCodeScreen from './src/screens/Auth/PartnerScreen';
