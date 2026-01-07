@@ -3,8 +3,7 @@ import { StyleSheet, Platform } from 'react-native';
 import { useFonts } from 'expo-font';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { TamaguiProvider, Button, YStack, Theme, Paragraph } from 'tamagui';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { TamaguiProvider, Theme, Paragraph, YStack, Button } from 'tamagui';
 import tamaguiConfig from './tamagui.config.ts';
 
 import RegistrationScreen from './src/screens/Auth/RegistrationScreen';
@@ -21,41 +20,30 @@ export default function App() {
     InterBold: require('@tamagui/font-inter/otf/Inter-Bold.otf'),
   });
 
-  if (!loaded) {
-    return null;
-  }
+  if (!loaded) return null;
 
   return (
-    // GestureHandlerRootView должен оборачивать ВСЁ приложение
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-        <Theme name="light">
-          <NavigationContainer>
-            <Stack.Navigator initialRouteName="Auth">
-              <Stack.Screen 
-                name="Auth" 
-                component={RegistrationScreen} 
-                options={{ title: 'Регистрация' }} 
-              />
-              <Stack.Screen name="Home" component={HomeScreen} />
-              <Stack.Screen name="Details" component={DetailsScreen} />
-            </Stack.Navigator>
-          </NavigationContainer>
-          <StatusBar style="auto" />
-        </Theme>
-      </TamaguiProvider>
-    </GestureHandlerRootView>
+    <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+      <Theme name="light">
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName="Auth">
+            <Stack.Screen 
+              name="Auth" 
+              component={RegistrationScreen} 
+              options={{ 
+                headerShown: false, // скрываем нативный хедер
+                contentStyle: { backgroundColor: '#fff' } // правильный контейнер для жестов
+              }} 
+            />
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Details" component={DetailsScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+        <StatusBar style="auto" />
+      </Theme>
+    </TamaguiProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})
 
 function HomeScreen({ navigation }: any) {
   return (

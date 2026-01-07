@@ -1,22 +1,16 @@
+import 'react-native-gesture-handler';
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ImageBackground,
-  Dimensions,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, ImageBackground, Dimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, FadeInDown, FadeOutUp } from 'react-native-reanimated';
+// Добавлен импорт BottomSheetBackdropProps для типизации
+import BottomSheet, { BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// Локализация RU
 LocaleConfig.locales['ru'] = {
   monthNames: ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
   monthNamesShort: ['Янв.','Фев.','Мар.','Апр.','Май','Июн.','Июл.','Авг.','Сен.','Окт.','Ноя.','Дек.'],
@@ -28,20 +22,22 @@ LocaleConfig.defaultLocale = 'ru';
 
 export default function RegistrationScreen() {
   const [date, setDate] = useState<string | null>(null);
-
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['70%'], []);
+  const snapPoints = useMemo(() => ['75%'], []);
 
-  const openCalendar = () => {
-    bottomSheetRef.current?.expand();
-  };
+  // --- ФУНКЦИИ (Объявлены ПЕРЕД использованием в return) ---
 
-  const closeCalendar = () => {
+  const openCalendar = useCallback(() => {
+    bottomSheetRef.current?.snapToIndex(0);
+  }, []);
+
+  const closeCalendar = useCallback(() => {
     bottomSheetRef.current?.close();
-  };
+  }, []);
 
+  // Типизированный рендер затемнения фона
   const renderBackdrop = useCallback(
-    (props) => (
+    (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
         {...props}
         appearsOnIndex={0}
@@ -52,143 +48,161 @@ export default function RegistrationScreen() {
     []
   );
 
-  const displayDate = (dateString: string) => {
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('ru-RU', {
+  const displayDate = useCallback((dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ru-RU', {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
     });
-  };
+  }, []);
 
   return (
-    <View style={styles.container}>
-      {/* ФОН */}
-      <LinearGradient
-        colors={['#FDFCFB', '#F2E2D2', '#E2D1C3']}
-        style={StyleSheet.absoluteFill}
-      />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        {/* ФОН */}
+        <LinearGradient
+          colors={['#FDFCFB', '#F2E2D2', '#E2D1C3']}
+          style={StyleSheet.absoluteFill}
+        />
+        <ImageBackground
+          source={{ uri: 'https://www.transparenttextures.com/patterns/tactile-noise-light.png' }}
+          style={styles.noiseOverlay}
+          resizeMode="repeat"
+        />
 
-      <ImageBackground
-        source={{ uri: 'https://www.transparenttextures.com/patterns/tactile-noise-light.png' }}
-        style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
-        resizeMode="repeat"
-      />
+        <View style={styles.content}>
+          <Text style={styles.appName}>LOVE APP</Text>
 
-      <View style={styles.content}>
-        <Text style={styles.appName}>LOVE APP</Text>
+          <View style={styles.centerBlock}>
+            <Text style={styles.mainTitle}>Начало истории</Text>
 
-        <View style={styles.centerBlock}>
-          <Text style={styles.mainTitle}>Начало истории</Text>
+            <View style={styles.glassWrapper}>
+              <BlurView intensity={90} tint="light" style={styles.liquidGlassCard}>
+                <Text style={styles.label}>ДАТА ВСТРЕЧИ</Text>
 
-          <BlurView intensity={90} tint="light" style={styles.liquidGlassCard}>
-            <Text style={styles.label}>Дата встречи</Text>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.dateSelectBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  onPress={openCalendar}
+                >
+                  <Text style={styles.dateSelectText}>
+                    {date ? displayDate(date) : 'Выбрать дату'}
+                  </Text>
+                </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.dateSelectBtn,
-                pressed && { opacity: 0.85 },
-              ]}
-              onPress={openCalendar}
-            >
-              <Text style={styles.dateSelectText}>
-                {date ? displayDate(date) : 'Выбрать дату'}
-              </Text>
-            </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.continueBtn,
+                    !date && styles.disabledBtn,
+                    pressed && date && { transform: [{ scale: 0.98 }] },
+                  ]}
+                  disabled={!date}
+                >
+                  <Text style={styles.continueText}>Продолжить</Text>
+                  <Ionicons 
+                    name="arrow-forward" 
+                    size={20} 
+                    color={date ? '#FFF' : '#AAA'} 
+                  />
+                </Pressable>
+              </BlurView>
+            </View>
+          </View>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.continueBtn,
-                !date && styles.disabledBtn,
-                pressed && date && { transform: [{ scale: 0.97 }] },
-              ]}
-              disabled={!date}
-            >
-              <Text style={styles.continueText}>Продолжить</Text>
-              <Ionicons name="arrow-forward" size={20} color={date ? '#FFF' : '#AAA'} />
-            </Pressable>
-          </BlurView>
+          <Pressable style={styles.partnerCodeBtn}>
+            <BlurView intensity={30} tint="default" style={styles.partnerBlur}>
+              <Text style={styles.partnerText}>У меня есть код партнера</Text>
+            </BlurView>
+          </Pressable>
         </View>
 
-        <Pressable style={styles.partnerCodeBtn}>
-          <BlurView intensity={30} tint="default" style={styles.partnerBlur}>
-            <Text style={styles.partnerText}>У меня есть код партнера</Text>
-          </BlurView>
-        </Pressable>
+        {/* BOTTOM SHEET */}
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          enablePanDownToClose
+          backdropComponent={renderBackdrop}
+          backgroundStyle={styles.sheetBackground}
+          handleIndicatorStyle={styles.handle}
+          // Убрали zIndex, так как портал BottomSheet сам управляет слоями в GestureHandlerRootView
+        >
+          <View style={styles.sheetContent}>
+            <Text style={styles.modalTitle}>Когда всё началось?</Text>
+
+            <Calendar
+              onDayPress={(day) => setDate(day.dateString)}
+              markedDates={
+                date ? { [date]: { selected: true, selectedColor: '#FF9A9E' } } : {}
+              }
+              maxDate={new Date().toISOString().split('T')[0]}
+              theme={{
+                backgroundColor: 'transparent',
+                calendarBackground: 'transparent',
+                textSectionTitleColor: '#999',
+                selectedDayBackgroundColor: '#FF9A9E',
+                selectedDayTextColor: '#ffffff',
+                todayTextColor: '#FF9A9E',
+                dayTextColor: '#2d4150',
+                textDisabledColor: '#d9e1e8',
+                arrowColor: '#FF9A9E',
+                monthTextColor: '#111',
+                textDayFontWeight: '500',
+                textMonthFontWeight: '700',
+                textDayHeaderFontWeight: '600',
+              }}
+            />
+
+            <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
+              <Text style={styles.modalConfirmText}>Готово</Text>
+            </Pressable>
+          </View>
+        </BottomSheet>
       </View>
-
-      {/* BOTTOM SHEET С КАЛЕНДАРЕМ */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.handle}
-      >
-        <BlurView intensity={100} tint="light" style={styles.sheetContent}>
-          <Text style={styles.modalTitle}>Когда всё началось?</Text>
-
-          <Calendar
-            onDayPress={(day) => setDate(day.dateString)}
-            markedDates={
-              date ? { [date]: { selected: true, selectedColor: '#FF9A9E' } } : {}
-            }
-            maxDate={new Date().toISOString().split('T')[0]}
-            theme={{
-              backgroundColor: 'transparent',
-              calendarBackground: 'transparent',
-              dayTextColor: '#333',
-              todayTextColor: '#FF9A9E',
-              monthTextColor: '#111',
-              textDisabledColor: '#B5B5B5',
-              selectedDayTextColor: '#FFF',
-              selectedDayBackgroundColor: '#FF9A9E',
-              arrowColor: '#FF9A9E',
-              textSectionTitleColor: '#999',
-              textDayFontWeight: '500',
-              textMonthFontWeight: '700',
-              textDayHeaderFontWeight: '600',
-            }}
-          />
-
-          <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
-            <Text style={styles.modalConfirmText}>Готово</Text>
-          </Pressable>
-        </BlurView>
-      </BottomSheet>
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  noiseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.2,
+    zIndex: 1,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 30,
     justifyContent: 'space-between',
     paddingVertical: 80,
+    zIndex: 2,
   },
   appName: {
     fontSize: 12,
     fontWeight: '900',
-    color: 'rgba(0,0,0,0.15)',
+    color: 'rgba(0,0,0,0.25)',
     letterSpacing: 4,
     textAlign: 'center',
   },
-  centerBlock: { alignItems: 'center' },
+  centerBlock: { alignItems: 'center', width: '100%' },
   mainTitle: {
     fontSize: 28,
     fontWeight: '200',
     color: '#1a1a1a',
     marginBottom: 40,
   },
+  glassWrapper: {
+    width: '100%',
+    borderRadius: 45,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
   liquidGlassCard: {
     width: '100%',
     padding: 30,
-    borderRadius: 45,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.8)',
     alignItems: 'center',
   },
   label: {
@@ -200,7 +214,7 @@ const styles = StyleSheet.create({
   },
   dateSelectBtn: {
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.5)',
     paddingVertical: 18,
     borderRadius: 22,
     alignItems: 'center',
@@ -217,7 +231,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   disabledBtn: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(0,0,0,0.1)',
   },
   continueText: {
     color: '#FFF',
@@ -226,48 +240,48 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   partnerCodeBtn: {
-    borderRadius: 20,
+    borderRadius: 22,
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   partnerBlur: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  partnerText: { fontSize: 14, color: '#666', fontWeight: '600' },
+  partnerText: { fontSize: 14, color: '#444', fontWeight: '600' },
 
-  // Bottom Sheet
   sheetBackground: {
-    backgroundColor: 'transparent',
-    borderTopLeftRadius: 50,
-    borderTopRightRadius: 50,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
   },
   sheetContent: {
     flex: 1,
-    padding: 30,
+    padding: 24,
   },
   handle: {
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    width: 50,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    width: 40,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '300',
+    fontSize: 20,
+    fontWeight: '400',
     textAlign: 'center',
-    marginBottom: 25,
+    marginBottom: 20,
+    color: '#333',
   },
   modalConfirmBtn: {
-    marginTop: 'auto',
-    paddingVertical: 20,
-    borderRadius: 30,
-    backgroundColor: '#FFF',
+    marginTop: 20,
+    paddingVertical: 18,
+    borderRadius: 22,
+    backgroundColor: '#111',
     alignItems: 'center',
   },
   modalConfirmText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#111',
+    color: '#FFF',
   },
 });
