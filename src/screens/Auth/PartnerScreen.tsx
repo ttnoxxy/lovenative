@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ImageBackground, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Animated, LayoutAnimation, UIManager} from 'react-native';
+import { 
+  View, Text, Pressable, StyleSheet, ImageBackground, TextInput,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
+  Animated, LayoutAnimation, UIManager
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +26,6 @@ export default function PartnerCodeScreen() {
   const heartAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const titleAnim = useRef(new Animated.Value(1)).current;
-  const keyboardShift = useRef(new Animated.Value(0)).current;
 
   // --- Автоформатирование кода ---
   const formatCode = (text: string) => {
@@ -34,7 +37,7 @@ export default function PartnerCodeScreen() {
   // --- Анимация цвета кнопки и сердца ---
   useEffect(() => {
     const isActive = code.length === 9;
-    let pulse: Animated.CompositeAnimation | null = null;
+    let pulse;
 
     Animated.timing(colorAnim, {
       toValue: isActive ? 1 : 0,
@@ -52,11 +55,10 @@ export default function PartnerCodeScreen() {
       pulse.start();
     } else {
       heartAnim.setValue(1);
+      if (pulse) pulse.stop();
     }
 
-    return () => {
-      if (pulse) pulse.stop();
-    };
+    return () => pulse && pulse.stop();
   }, [code]);
 
   // --- Shake animation при неверном коде ---
@@ -86,41 +88,12 @@ export default function PartnerCodeScreen() {
   // --- Плавное исчезновение заголовка при клавиатуре ---
   useEffect(() => {
     const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       Animated.timing(titleAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
     });
     const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       Animated.timing(titleAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-
-  // --- Плавный подъём всего блока при клавиатуре ---
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, (e: any) => {
-      const kh = e?.endCoordinates?.height ?? 0;
-      const duration = e?.duration ?? 250;
-      const ratio = Platform.OS === 'ios' ? 0.6 : 0.7;
-      Animated.timing(keyboardShift, {
-        toValue: -kh * ratio,
-        duration,
-        useNativeDriver: true,
-      }).start();
-    });
-
-    const hideSub = Keyboard.addListener(hideEvent, (e: any) => {
-      const duration = e?.duration ?? 200;
-      Animated.timing(keyboardShift, {
-        toValue: 0,
-        duration,
-        useNativeDriver: true,
-      }).start();
     });
 
     return () => {
@@ -153,8 +126,12 @@ export default function PartnerCodeScreen() {
           <Ionicons name="chevron-back" size={24} color="rgba(0,0,0,0.5)" />
         </Pressable>
 
-        <View style={styles.content}>
-          <Animated.View style={[styles.centerBlock, { transform: [{ translateY: keyboardShift }] }]}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 30 : 70} 
+          style={styles.content}
+        >
+          <View style={styles.centerBlock}>
             <Animated.Text style={[styles.mainTitle, { opacity: titleAnim, transform: [{ scale: titleAnim }] }]}>
               Связь с партнером
             </Animated.Text>
@@ -202,8 +179,8 @@ export default function PartnerCodeScreen() {
                 <Ionicons name="copy-outline" size={16} color="#444" style={{ marginLeft: 10 }} />
               </Pressable>
             </View>
-          </Animated.View>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </TouchableWithoutFeedback>
   );

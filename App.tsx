@@ -12,6 +12,8 @@ import tamaguiConfig from './tamagui.config';
 import RegistrationScreen from './src/screens/Auth/RegistrationScreen';
 import PartnerCodeScreen from './src/screens/Auth/PartnerScreen';
 
+import { LoveSpaceScreen } from './src/screens/Main/Dashboard';
+
 const Stack = createNativeStackNavigator();
 
 if (Platform.OS === 'web') {
@@ -32,7 +34,12 @@ export default function App() {
         <Theme name="light">
           <BottomSheetModalProvider>
             <NavigationContainer>
+              {/* ВРЕМЕННО: Я поставил initialRouteName="LoveSpace", 
+                  чтобы при запуске вы сразу увидели новый дизайн.
+                  Потом верните на "Auth".
+              */}
               <Stack.Navigator initialRouteName="Auth">
+                
                 <Stack.Screen 
                   name="Auth" 
                   component={RegistrationScreen} 
@@ -41,13 +48,24 @@ export default function App() {
                     contentStyle: { backgroundColor: '#fff' }
                   }} 
                 />
+                
                 <Stack.Screen 
                   name="PartnerScreen" 
                   component={PartnerCodeScreen} 
                   options={{ headerShown: false }} 
                 />
+
+                {/* --- НОВЫЙ ЭКРАН --- */}
+                <Stack.Screen 
+                  name="LoveSpace" 
+                  component={LoveSpaceScreen} 
+                  options={{ headerShown: false }} 
+                />
+                {/* ------------------- */}
+
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Details" component={DetailsScreen} />
+
               </Stack.Navigator>
             </NavigationContainer>
           </BottomSheetModalProvider>
@@ -63,6 +81,8 @@ function HomeScreen({ navigation }: any) {
     <YStack flex={1} justifyContent="center" alignItems="center" padding="$4" gap="$4">
       <Paragraph size="$5">Главная</Paragraph>
       <Button onPress={() => navigation.navigate('Details')}>Открыть детали</Button>
+      {/* Кнопка для теста перехода на новый экран из Home */}
+      <Button onPress={() => navigation.navigate('LoveSpace')}>Открыть Love Space</Button>
     </YStack>
   )
 }
