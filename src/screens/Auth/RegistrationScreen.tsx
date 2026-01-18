@@ -152,6 +152,7 @@ export default function RegistrationScreen() {
                 onPress={() => { 
                   if (date) {
                     hapticLightImpact();
+                    // navigate to the route name that exists in your navigator
                     navigation.navigate('LoveSpace', { startDate: date });
                   }
                 }}

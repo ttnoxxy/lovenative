@@ -9,13 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
-import { TelegramStyleMenu } from '../../components/menu';
 
 const { width } = Dimensions.get('window');
 
 // Типы для навигации
 type RootStackParamList = {
-  LoveSpaceScreen: { startDate: string };
+  LoveSpace: { startDate: string };
 };
 
 type LoveSpaceScreenRouteProp = RouteProp<RootStackParamList, 'LoveSpace'>;
@@ -63,17 +62,28 @@ export function LoveSpaceScreen({ route }: { route: LoveSpaceScreenRouteProp }) 
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   }, [startDate]);
+
+  // New: compute next milestone (next multiple of 50 after current days), days left and progress
+  const { nextMilestone, daysLeftToMilestone, milestoneProgress } = useMemo(() => {
+    const next = Math.ceil((loveDays + 1) / 50) * 50; // ensures next > loveDays and rounds to 50s
+    const left = Math.max(next - loveDays, 0);
+    const progress = Math.min(loveDays / next, 1);
+    return { nextMilestone: next, daysLeftToMilestone: left, milestoneProgress: progress };
+  }, [loveDays]);
   
   // Анимации появления
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Убраны numberAnim и displayNumber state — отображаем loveDays напрямую
+  const displayNumber = loveDays;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [loveDays]);
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -117,8 +127,7 @@ export function LoveSpaceScreen({ route }: { route: LoveSpaceScreenRouteProp }) 
 
         {/* --- MAIN COUNTER --- */}
         <Animated.View style={[styles.counterContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-
-          <Text style={styles.mainNumber}>{loveDays}</Text>
+          <Text style={styles.mainNumber}>{displayNumber}</Text>
           <Text style={styles.mainLabel}>ДНЕЙ ЛЮБВИ</Text>
         </Animated.View>
 
@@ -130,21 +139,19 @@ export function LoveSpaceScreen({ route }: { route: LoveSpaceScreenRouteProp }) 
               <Ionicons name="star-outline" size={18} color="rgba(0,0,0,0.3)" />
             </View>
             
-            <Text style={styles.cardTitle}>50 Дней</Text>
+            <Text style={styles.cardTitle}>{nextMilestone} Дней</Text>
             
-            <ProgressBar progress={0.18} />
+            <ProgressBar progress={milestoneProgress} />
 
             <View style={styles.cardFooter}>
-              <Text style={styles.footerText}>33 ДНЕЙ ОСТАЛОСЬ</Text>
-              <Text style={styles.footerPercent}>18%</Text>
+              <Text style={styles.footerText}>{daysLeftToMilestone} ДНЕЙ ОСТАЛОСЬ</Text>
+              <Text style={styles.footerPercent}>{Math.round(milestoneProgress * 100)}%</Text>
             </View>
           </BlurView>
         </Animated.View>
 
         <View style={{ flex: 1 }} />
 
-        {/* --- FLOATING TELEGRAM-STYLE MENU --- */}
-        <TelegramStyleMenu />
 
       </View>
     </View>
@@ -170,6 +177,7 @@ const styles = StyleSheet.create({
   counterContainer: { alignItems: 'center', marginTop: 20, marginBottom: 50 },
   mainNumber: { fontSize: 140, fontWeight: '200', color: '#2A2A2A', lineHeight: 150, includeFontPadding: false },
   mainLabel: { fontSize: 12, fontWeight: '600', color: '#5C3A3A', letterSpacing: 4, textTransform: 'uppercase', opacity: 0.7 },
+  smallHint: { fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 6 },
 
   // Card
   glassWrapper: { width: '100%', borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 20, shadowOffset: {width: 0, height: 10} },
@@ -204,4 +212,5 @@ const styles = StyleSheet.create({
   bottomIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' },
   cameraBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  startDateText: { fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 4 },
 });

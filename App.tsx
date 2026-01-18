@@ -12,7 +12,8 @@ import tamaguiConfig from './tamagui.config';
 import RegistrationScreen from './src/screens/Auth/RegistrationScreen';
 import PartnerCodeScreen from './src/screens/Auth/PartnerScreen';
 
-import { LoveSpaceScreen } from './src/screens/Main/Dashboard';
+import MainLayout from './src/screens/MainLayout';
+import SettingsScreen from './src/screens/Main/SettingsScreen'; //
 
 const Stack = createNativeStackNavigator();
 
@@ -21,6 +22,7 @@ if (Platform.OS === 'web') {
 }
 
 export default function App() {
+  console.log('[App] start');
   const [loaded] = useFonts({
     Inter: require('@tamagui/font-inter/otf/Inter-Medium.otf'),
     InterBold: require('@tamagui/font-inter/otf/Inter-Bold.otf'),
@@ -58,10 +60,20 @@ export default function App() {
                 {/* --- НОВЫЙ ЭКРАН --- */}
                 <Stack.Screen 
                   name="LoveSpace" 
-                  component={LoveSpaceScreen} 
+                  component={MainLayout} 
                   options={{ headerShown: false }} 
                 />
                 {/* ------------------- */}
+
+                {/* 4. Настройки */}
+                <Stack.Screen 
+                  name="Settings" 
+                  component={SettingsScreen} 
+                  options={{ 
+                    headerShown: false,
+                    presentation: 'modal' // Можно сделать открытием снизу как модалку
+                  }} 
+                />
 
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Details" component={DetailsScreen} />
