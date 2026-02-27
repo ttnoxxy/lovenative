@@ -79,6 +79,32 @@ export default function RegistrationScreen() {
     });
   }, []);
 
+  const relationDurationLabel = useMemo(() => {
+    if (!date) return null;
+
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+
+    const diff = currentDate.getTime() - selectedDate.getTime();
+    const dayMs = 1000 * 60 * 60 * 24;
+    const days = Math.floor(diff / dayMs);
+
+    if (days <= 0) return 'Это сегодня ✨';
+    if (days === 1) return 'Вместе уже 1 день';
+    if (days < 5) return `Вместе уже ${days} дня`;
+    return `Вместе уже ${days} дней`;
+  }, [date]);
+
+  const setRelativeDate = useCallback((offsetInDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offsetInDays);
+    setDate(d.toISOString().split('T')[0]);
+    hapticSelection();
+  }, [hapticSelection]);
+
   // Сохраняем анимацию шума, но сделаем непрозрачность более тонкой для соответствия дизайну
   const noiseOpacity = useSharedValue(0.1); 
   useEffect(() => {
@@ -115,7 +141,6 @@ export default function RegistrationScreen() {
         source={{ uri: 'https://www.transparenttextures.com/patterns/microfabrics.png' }} 
         resizeMode="repeat"
         style={[styles.noiseOverlay, noiseAnimatedStyle]}
-        pointerEvents="none"
       />
 
       <View style={styles.content}>
@@ -125,6 +150,7 @@ export default function RegistrationScreen() {
         <View style={styles.mainGroup}>
           {/* Главный заголовок — Огромный, жирный, черный */}
           <Text style={styles.mainTitle}>Когда всё началось?</Text>
+          <Text style={styles.subtitle}>Выберите день, с которого хотите считать вашу историю.</Text>
 
           {/* Центральный блок выбора даты — Простой, без фона и размытия */}
           <View style={styles.dateBlock}>
@@ -138,10 +164,27 @@ export default function RegistrationScreen() {
               ]}
               onPress={openCalendar}
             >
-              <Text style={styles.dateSelectText}>
+              <Text style={[styles.dateSelectText, !date && styles.placeholderText]}>
                 {date ? displayDate(date) : 'Выбрать дату'}
               </Text>
+              <Text style={styles.chevron}>›</Text>
             </Pressable>
+
+            <View style={styles.quickDatesRow}>
+              <Pressable style={styles.quickDateChip} onPress={() => setRelativeDate(0)}>
+                <Text style={styles.quickDateText}>Сегодня</Text>
+              </Pressable>
+              <Pressable style={styles.quickDateChip} onPress={() => setRelativeDate(1)}>
+                <Text style={styles.quickDateText}>Вчера</Text>
+              </Pressable>
+            </View>
+
+            {relationDurationLabel && (
+              <View style={styles.hintCard}>
+                <Text style={styles.hintLabel}>ВАША ИСТОРИЯ</Text>
+                <Text style={styles.hintText}>{relationDurationLabel}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -194,6 +237,16 @@ export default function RegistrationScreen() {
                 : {}
             }
             maxDate={todayStr}
+            theme={{
+              selectedDayBackgroundColor: '#000000',
+              selectedDayTextColor: '#FFFFFF',
+              todayTextColor: '#000000',
+              arrowColor: '#000000',
+              monthTextColor: '#111111',
+              textMonthFontWeight: '700',
+              textDayHeaderFontWeight: '600',
+              textDayFontWeight: '500',
+            }}
           />
 
           <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
@@ -223,7 +276,14 @@ const styles = StyleSheet.create({
     fontWeight: '900', // Очень жирный
     color: '#000000',
     lineHeight: 64,
-    marginBottom: 60,
+    marginBottom: 14,
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 23,
+    color: 'rgba(0,0,0,0.55)',
+    marginBottom: 32,
+    maxWidth: 300,
   },
   dateBlock: { width: '100%' },
   label: {
@@ -237,14 +297,47 @@ const styles = StyleSheet.create({
   dateSelectBtn: {
     width: '100%',
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
     paddingVertical: 18,
     borderRadius: 999, // Полностью скругленная стадионная форма
     borderWidth: 1.5,
     borderColor: '#000000', // Черный контур
     alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
     marginBottom: 0,
   },
   dateSelectText: { fontSize: 16, fontWeight: '600', color: '#000000' },
+  placeholderText: { color: 'rgba(0,0,0,0.45)' },
+  chevron: { fontSize: 26, color: '#000000', marginTop: -2 },
+  quickDatesRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  quickDateChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.14)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  quickDateText: { fontSize: 13, fontWeight: '600', color: '#111' },
+  hintCard: {
+    marginTop: 16,
+    backgroundColor: '#F6F6F6',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.07)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  hintLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Courier',
+    color: 'rgba(0,0,0,0.35)',
+    letterSpacing: 1.4,
+    marginBottom: 4,
+  },
+  hintText: { fontSize: 15, fontWeight: '700', color: '#0D0D0D' },
 
   buttonGroup: {
     flexDirection: 'row',
