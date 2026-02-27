@@ -1,424 +1,219 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  Pressable, 
-  StyleSheet, 
-  useWindowDimensions,
+import React, { useRef, useEffect } from 'react';
+import {
+  View,
+  Pressable,
+  Text,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  PixelRatio,
   Platform,
-  Modal,
-  ImageBackground
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import Animated, { 
-  useAnimatedStyle, 
-  withSpring,
-  withTiming
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCameraPermissions } from 'expo-camera';
-import * as MediaLibrary from 'expo-media-library';
 import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-const MENU_CONFIG = {
-  SIDE_PADDING: 16,
-  GAP: 12,
-  BAR_HEIGHT: 72,
-  INNER_PADDING: 5,
-  ACTIVE_COLOR: '#1a1a1a',
-  INACTIVE_OPACITY: 0.4,
+const { width } = Dimensions.get('window');
+
+// Нормализация размеров: базовая ширина 390px (iPhone 14)
+const normalize = (size: number) => {
+  const scale = width / 390;
+  return Math.round(PixelRatio.roundToNearestPixel(size * scale));
 };
 
+// Укороченные подписи чтобы всегда влезали
 const TABS = [
-  { id: 'history', icon: 'book-outline', label: 'История' },
-  { id: 'dates', icon: 'heart-outline', label: 'Галерея' },
-  { id: 'settings', icon: 'settings-outline', label: 'Настройки' },
-] as const;
+  { index: 0, label: 'Главная',  icon: 'heart-outline',    iconActive: 'heart' },
+  { index: 1, label: 'Моменты',  icon: 'images-outline',   iconActive: 'images' },
+  { index: 2, label: 'Настройки',icon: 'settings-outline', iconActive: 'settings' },
+];
 
-// логируем загрузку модуля (поможет понять, импортируется ли файл вообще)
-console.log('[MENU] module loaded');
+type Props = { activeTab: number; onTabChange: (index: number) => void; };
+type TabItemProps = { tab: typeof TABS[0]; isActive: boolean; onPress: () => void; };
 
-interface TelegramStyleMenuProps {
-  onTabChange?: (index: number) => void;
-}
+const TabItem = ({ tab, isActive, onPress }: TabItemProps) => {
+  const scaleAnim   = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(isActive ? 1 : 0.45)).current;
+  const dotAnim     = useRef(new Animated.Value(isActive ? 1 : 0)).current;
 
-export const TelegramStyleMenu = ({ onTabChange }: TelegramStyleMenuProps) => {
-  const { width: windowWidth } = useWindowDimensions(); 
-  const insets = useSafeAreaInsets();
-  const wrapperStyle = [
-    styles.menuWrapper,
-    { bottom: Math.max(insets.bottom, 20), paddingBottom: Platform.OS === 'ios' ? 0 : 20 },
-  ];
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim,   { toValue: isActive ? 1.05 : 1, useNativeDriver: true, tension: 200, friction: 10 }),
+      Animated.timing(opacityAnim, { toValue: isActive ? 1 : 0.5, duration: 200, useNativeDriver: true }),
+      Animated.spring(dotAnim,     { toValue: isActive ? 1 : 0, useNativeDriver: true, tension: 200, friction: 12 }),
+    ]).start();
+  }, [isActive]);
 
-  // отладочные логи: показываем insets, ширину окна и т.д.
-  React.useEffect(() => {
-    console.log('[MENU] mount/update', {
-      insets,
-      windowWidth,
-      dims: undefined, // dims ещё не определены на этом этапе — будет лог ниже
-    });
-  }, [insets, windowWidth]);
-
-  const [activeTab, setActiveTab] = useState(0);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-
-  // логируем dims и активный таб при их изменении
-  React.useEffect(() => {
-    console.log('[MENU] state', { activeTab, isCameraOpen });
-  }, [activeTab, isCameraOpen]);
-
-  const navigation = useNavigation<NativeStackNavigationProp<any>>(); // навигация
-
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<any>(null);
-  const [cameraType, setCameraType] = useState<'back' | 'front'>('back');
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [CameraLoaded, setCameraLoaded] = useState<any>(null); // загруженный компонент камеры
-  const [CameraConstants, setCameraConstants] = useState<any>(null); // возможно содержит .Type
-
-  const dims = useMemo(() => {
-    const cameraBtnSize = MENU_CONFIG.BAR_HEIGHT;
-    const mainBarWidth = windowWidth - (MENU_CONFIG.SIDE_PADDING * 2) - cameraBtnSize - MENU_CONFIG.GAP;
-    const tabWidth = (mainBarWidth - (MENU_CONFIG.INNER_PADDING * 2)) / TABS.length;
-    // логируем размеры
-    console.log('[MENU] dims calculated', { cameraBtnSize, mainBarWidth, tabWidth, windowWidth });
-    return { cameraBtnSize, mainBarWidth, tabWidth };
-  }, [windowWidth]);
-
-  const handleTabPress = useCallback((index: number) => {
-    setActiveTab(index);
+  const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  
-    // Теперь мы просто уведомляем родителя о смене индекса
-    onTabChange?.(index); 
-    
-    // Убираем или комментируем:
-    // if (selectedTab.id === 'settings') { navigation.navigate('Settings'); }
-  }, [onTabChange]);
-
-  const handleCameraPress = useCallback(async () => {
-    console.log('[MENU] camera button pressed');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    // корректно запрашиваем/проверяем разрешения — используем результат requestPermission
-    let currentPerm = permission;
-    if (!currentPerm) {
-      const res = await requestPermission();
-      currentPerm = res;
-      console.log('[MENU] requestPermission result', res);
-    } else if (!currentPerm.granted) {
-      const res = await requestPermission();
-      currentPerm = res;
-      console.log('[MENU] re-requestPermission result', res);
-    }
-
-    if (!currentPerm?.granted) {
-      alert('Нет доступа к камере');
-      return;
-    }
-
-    setPreviewUri(null);
-
-    // динамически импортируем модуль камеры при первом открытии
-    if (!CameraLoaded) {
-      try {
-        console.log('[MENU] importing expo-camera module...');
-        const mod = await import('expo-camera');
-        console.log('[MENU] expo-camera module keys:', Object.keys(mod));
-
-        // выбор корректного компонента Camera из разных форм экспорта
-        let Comp: any = null;
-        if (typeof mod.Camera === 'function' || typeof mod.Camera === 'object') Comp = mod.Camera;
-        else if (mod.default && (typeof mod.default === 'function' || typeof mod.default === 'object')) {
-          // иногда экспорт по умолчанию содержит Camera внутри
-          Comp = (mod.default.Camera) ? mod.default.Camera : mod.default;
-        } else if (typeof mod === 'function' || typeof mod === 'object') {
-          Comp = (mod as any).Camera ?? (mod as any).default ?? mod;
-        }
-
-        const Consts = (mod.Camera && (mod.Camera as any).Constants) ?? (mod.default && (mod.default as any).Constants) ?? (mod as any).Constants ?? null;
-        console.log('[MENU] determined Camera component:', !!Comp, 'Constants:', !!Consts);
-
-        if (!Comp) {
-          throw new Error('Camera component not found in expo-camera module');
-        }
-
-        setCameraLoaded(() => Comp);
-        setCameraConstants(() => Consts);
-      } catch (err) {
-        console.error('[MENU] failed to import expo-camera', err);
-        alert('Не удалось загрузить камеру');
-        return;
-      }
-    }
-    setIsCameraOpen(true);
-  }, [permission, requestPermission, CameraLoaded]);
-
-  const handleTakePhoto = useCallback(async () => {
-    if (!cameraRef.current) return;
-    try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7, skipProcessing: true });
-      console.log('[MENU] photo taken', photo.uri);
-      setPreviewUri(photo.uri);
-      // Сохраняем автоматически
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status === 'granted') {
-        setSaving(true);
-        await MediaLibrary.createAssetAsync(photo.uri);
-        setSaving(false);
-        alert('Фото сохранено в галерею');
-      } else {
-        alert('Нет доступа к галерее');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-
-  const handleFlipCamera = useCallback(() => {
-    setCameraType(prev => prev === 'back' ? 'front' : 'back');
-  }, []);
-
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ 
-      translateX: withSpring(
-        MENU_CONFIG.INNER_PADDING + activeTab * dims.tabWidth, 
-        { damping: 15, stiffness: 150 }
-      ) 
-    }],
-  }));
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.9, duration: 70, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: isActive ? 1.05 : 1, useNativeDriver: true, tension: 200, friction: 8 }),
+    ]).start();
+    onPress();
+  };
 
   return (
-    <>
-      <View
-        style={wrapperStyle}
-        onLayout={(e) => {
-          console.log('[MENU] layout', e.nativeEvent.layout);
-        }}
-      >
-        <View style={styles.contentContainer}>
-          
-          <View style={[styles.mainIsland, { width: dims.mainBarWidth }]}>
-            <BlurView intensity={80} tint="extraLight" style={styles.blurContainer}>
-              <View style={styles.innerTrack}>
-                <Animated.View 
-                  style={[styles.activePill, indicatorStyle, { width: dims.tabWidth }]} 
-                />
-                {TABS.map((tab, index) => (
-                  <TabButton
-                    key={tab.id}
-                    icon={tab.icon}
-                    label={tab.label}
-                    isActive={activeTab === index}
-                    onPress={() => handleTabPress(index)}
-                  />
-                ))}
-              </View>
-            </BlurView>
-          </View>
-
-          <Pressable 
-            onPress={handleCameraPress}
-            style={({ pressed }) => [
-              styles.cameraButton, 
-              { 
-                width: dims.cameraBtnSize, 
-                height: dims.cameraBtnSize, 
-                opacity: pressed ? 0.8 : 1,
-                transform: [{ scale: pressed ? 0.95 : 1 }]
-              }
-            ]}
-          >
-            <BlurView intensity={90} tint="extraLight" style={styles.cameraBlur}>
-              <Ionicons name="camera" size={28} color={MENU_CONFIG.ACTIVE_COLOR} />
-            </BlurView>
-          </Pressable>
-
-        </View>
-      </View>
-
-      {/* Камера */}
-      <Modal visible={isCameraOpen} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: '#000' }}>
-          {/* Верхняя панель: Закрыть и Переключить */}
-          <View style={{ position: 'absolute', top: 40, left: 16, right: 16, zIndex: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Pressable onPress={() => setIsCameraOpen(false)} style={{ padding: 8 }}>
-              <Ionicons name="close" size={32} color="#fff" />
-            </Pressable>
-            <Pressable onPress={handleFlipCamera} style={{ padding: 8 }}>
-              <Ionicons name="camera-reverse" size={32} color="#fff" />
-            </Pressable>
-          </View>
-
-          {/* Видоискатель */}
-          <View style={{ flex: 1 }}>
-            {!permission?.granted ? (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="camera" size={48} color="#888" />
-                <Text style={{ color: '#fff', marginTop: 12 }}>Требуется доступ к камере</Text>
-                <Pressable onPress={async () => { await requestPermission(); }} style={{ marginTop: 12 }}>
-                  <Text style={{ color: '#fff', textDecorationLine: 'underline' }}>Запросить разрешение</Text>
-                </Pressable>
-              </View>
-            ) : (
-              // рендерим только если динамический компонент успешно загружен
-              CameraLoaded ? (
-                (() => {
-                  // вычисляем корректный проп type: используем Constants.Type если доступно
-                  const typeProp = CameraConstants && CameraConstants.Type
-                    ? (cameraType === 'back' ? CameraConstants.Type.back : CameraConstants.Type.front)
-                    : (cameraType as any);
-
-                  return (
-                    <CameraLoaded
-                      style={{ flex: 1 }}
-                      ref={cameraRef as any}
-                      type={typeProp}
-                    />
-                  );
-                })()
-              ) : (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ color: '#fff' }}>Загрузка камеры...</Text>
-                </View>
-              )
-            )}
-          </View>
-
-          {/* Нижняя панель: превью и кнопка съемки */}
-          <View style={{ position: 'absolute', bottom: 30, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: '#222', overflow: 'hidden' }}>
-              {previewUri ? <ImageBackground source={{ uri: previewUri }} style={{ flex: 1 }} /> : null}
-            </View>
-
-            <Pressable onPress={handleTakePhoto} style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }, styles.captureButton]}>
-              <View style={styles.innerCapture} />
-            </Pressable>
-
-            <View style={{ width: 60 }} />
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
-};
-
-const TabButton = ({ icon, label, isActive, onPress }: any) => {
-  const animatedTextStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(isActive ? 1 : MENU_CONFIG.INACTIVE_OPACITY),
-    transform: [{ scale: withTiming(isActive ? 1 : 0.95) }]
-  }));
-
-  return (
-    <Pressable onPress={onPress} style={styles.tabItem}>
-      <Animated.View style={[styles.tabContent, animatedTextStyle]}>
-        <Ionicons 
-          name={isActive ? icon.replace('-outline', '') : icon} 
-          size={22} 
-          color={MENU_CONFIG.ACTIVE_COLOR} 
+    <Pressable style={styles.tabItem} onPress={handlePress} accessibilityLabel={tab.label}>
+      <Animated.View style={[
+        styles.tabInner,
+        { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
+      ]}>
+        <Ionicons
+          name={(isActive ? tab.iconActive : tab.icon) as any}
+          size={normalize(22)}
+          color={isActive ? '#5C3A3A' : '#8A7070'}
         />
-        <Text style={styles.tabLabel}>{label}</Text>
+        <Text
+          style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {tab.label}
+        </Text>
+        <Animated.View style={[styles.dot, { transform: [{ scale: dotAnim }], opacity: dotAnim }]} />
       </Animated.View>
     </Pressable>
   );
 };
 
-const styles = StyleSheet.create({
-  menuWrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    zIndex: 1000,
-    elevation: 20,
-    paddingBottom: 0, // динамический bottom/paddingBottom задаём внутри компонента
-  },
+export const TelegramStyleMenu = ({ activeTab, onTabChange }: Props) => {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+  const slideAnim       = useRef(new Animated.Value(100)).current;
+  const cameraScaleAnim = useRef(new Animated.Value(1)).current;
 
-  contentContainer: {
+  const bottomPad = Math.max(insets.bottom, 12);
+  // Размер кнопки камеры = высота таб-бара
+  // innerBorder paddingVertical(10) × 2 + tabInner paddingVertical(6) × 2 + icon(22) + gap(3) + text(10) + gap(3) + dot(4) ≈ 74
+  const CAM_SIZE = normalize(74);
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: 0, useNativeDriver: true,
+      tension: 120, friction: 14, delay: 300,
+    }).start();
+  }, []);
+
+  const handleCameraPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Animated.sequence([
+      Animated.timing(cameraScaleAnim, { toValue: 0.85, duration: 80, useNativeDriver: true }),
+      Animated.spring(cameraScaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+    ]).start();
+    navigation.navigate('Camera');
+  };
+
+  return (
+    <Animated.View style={[styles.wrapper, { paddingBottom: bottomPad, transform: [{ translateY: slideAnim }] }]}>
+      <View style={styles.row}>
+
+        {/* Таб-бар */}
+        <BlurView intensity={70} tint="light" style={styles.blurContainer}>
+          <View style={styles.innerBorder}>
+            {TABS.map((tab) => (
+              <TabItem
+                key={tab.index}
+                tab={tab}
+                isActive={activeTab === tab.index}
+                onPress={() => onTabChange(tab.index)}
+              />
+            ))}
+          </View>
+        </BlurView>
+
+        {/* Кнопка камеры */}
+        <Animated.View style={{ transform: [{ scale: cameraScaleAnim }] }}>
+          <Pressable onPress={handleCameraPress} accessibilityLabel="Открыть камеру">
+            <BlurView
+              intensity={70}
+              tint="light"
+              style={[styles.cameraBtn, { width: CAM_SIZE, height: CAM_SIZE, borderRadius: CAM_SIZE / 2 }]}
+            >
+              <Ionicons name="camera" size={normalize(24)} color="#5C3A3A" />
+            </BlurView>
+          </Pressable>
+        </Animated.View>
+
+      </View>
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  wrapper: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    zIndex: 100,
+    paddingHorizontal: normalize(16),
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: MENU_CONFIG.SIDE_PADDING,
-  },
-  mainIsland: {
-    height: MENU_CONFIG.BAR_HEIGHT,
-    borderRadius: 35,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20 },
-      android: { elevation: 8 },
-    }),
+    gap: normalize(10),
   },
   blurContainer: {
     flex: 1,
-    padding: MENU_CONFIG.INNER_PADDING,
+    borderRadius: normalize(36),
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(253,247,242,0.35)',
+    shadowColor: '#5C3A3A',
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 20,
   },
-  innerTrack: {
-    flex: 1,
+  innerBorder: {
     flexDirection: 'row',
-  },
-  activePill: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#FFF',
-    borderRadius: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    paddingVertical: normalize(10),
+    paddingHorizontal: normalize(4),
   },
   tabItem: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
   },
-  tabContent: {
+  tabInner: {
     alignItems: 'center',
+    paddingVertical: normalize(6),
+    paddingHorizontal: normalize(8),
+    borderRadius: normalize(18),
+    gap: 3,
+    minWidth: 0,
+    alignSelf: 'stretch',
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: normalize(10),
+    fontWeight: '600',
+    color: '#8A7070',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  tabLabelActive: {
+    color: '#5C3A3A',
     fontWeight: '700',
-    color: MENU_CONFIG.ACTIVE_COLOR,
-    marginTop: 2,
   },
-  cameraButton: {
-    marginLeft: MENU_CONFIG.GAP,
-    borderRadius: 999,
+  dot: {
+    width: normalize(4),
+    height: normalize(4),
+    borderRadius: normalize(2),
+    backgroundColor: '#FF9A9E',
+  },
+  cameraBtn: {
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.3)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20 },
-      android: { elevation: 8 },
-    }),
-  },
-  cameraBlur: {
-    flex: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(253,247,242,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  captureButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 5,
-    borderColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  innerCapture: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#fff',
+    shadowColor: '#5C3A3A',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 20,
   },
 });

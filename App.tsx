@@ -11,7 +11,7 @@ import tamaguiConfig from './tamagui.config';
 
 import RegistrationScreen from './src/screens/Auth/RegistrationScreen';
 import PartnerCodeScreen from './src/screens/Auth/PartnerScreen';
-
+import CameraScreen from './src/screens/Camera';
 import MainLayout from './src/screens/MainLayout';
 import SettingsScreen from './src/screens/Main/SettingsScreen'; //
 
@@ -59,7 +59,7 @@ export default function App() {
 
                 {/* --- НОВЫЙ ЭКРАН --- */}
                 <Stack.Screen 
-                  name="LoveSpace" 
+                  name="Main" 
                   component={MainLayout} 
                   options={{ headerShown: false }} 
                 />
@@ -77,6 +77,7 @@ export default function App() {
 
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Details" component={DetailsScreen} />
+                <Stack.Screen name="Camera" component={CameraScreen} />
 
               </Stack.Navigator>
             </NavigationContainer>

@@ -1,19 +1,19 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
-import { BlurView } from 'expo-blur';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, Dimensions, StatusBar } from 'react-native';
+// Удаляем BlurView и LinearGradient, они больше не нужны для нового дизайна
+// import { BlurView } from 'expo-blur';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+// import { LinearGradient } from 'expo-linear-gradient';
+// import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal, BottomSheetBackdrop, BottomSheetBackdropProps, BottomSheetView } from '@gorhom/bottom-sheet';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
-// Настройка русской локали для календаря
 LocaleConfig.locales['ru'] = {
   monthNames: ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
   monthNamesShort: ['Янв.','Фев.','Мар.','Апр.','Май','Июн.','Июл.','Авг.','Сен.','Окт.','Ноя.','Дек.'],
@@ -23,42 +23,16 @@ LocaleConfig.locales['ru'] = {
 };
 LocaleConfig.defaultLocale = 'ru';
 
-// Тип навигации
 type RootStackParamList = {
   Registration: undefined;
   PartnerScreen: undefined;
-  LoveSpaceScreen: { startDate: string };
+  Main: undefined;
 };
-type RegistrationScreenProp = NativeStackNavigationProp<RootStackParamList, 'Registration'>;
 
-// ===== LAVA LAMP COMPONENT =====
-const LavaBlob = ({ size, colors, startX, startY }: { size: number; colors: string[]; startX: number; startY: number; }) => {
-  const x = useSharedValue(startX);
-  const y = useSharedValue(startY);
-
-  React.useEffect(() => {
-    x.value = withRepeat(
-      withTiming(startX + (Math.random() * 160 - 80), { duration: 14000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-    y.value = withRepeat(
-      withTiming(startY + (Math.random() * 180 - 90), { duration: 16000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }],
-  }));
-
-  return (
-    <Animated.View style={[styles.blob, animatedStyle]}>
-      <LinearGradient colors={colors} style={{ width: size, height: size, borderRadius: size / 2 }} />
-    </Animated.View>
-  );
-};
+type RegistrationScreenProp = NativeStackNavigationProp<
+  RootStackParamList,
+  'Registration'
+>;
 
 export default function RegistrationScreen() {
   const [date, setDate] = useState<string | null>(null);
@@ -68,7 +42,6 @@ export default function RegistrationScreen() {
   const lastHaptic = useRef<number>(0);
   const navigation = useNavigation<RegistrationScreenProp>();
 
-  // ===== HAPTICS =====
   const hapticSelection = useCallback(() => {
     const now = Date.now();
     if (now - lastHaptic.current > 250) {
@@ -77,20 +50,23 @@ export default function RegistrationScreen() {
     }
   }, []);
 
-  const hapticLightImpact = useCallback(() => {
-    const now = Date.now();
-    if (now - lastHaptic.current > 250) {
-      lastHaptic.current = now;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  }, []);
-
-  const closeCalendar = useCallback(() => { bottomSheetModalRef.current?.dismiss(); }, []);
-  const openCalendar = useCallback(() => { bottomSheetModalRef.current?.present(); }, []);
+  const closeCalendar = useCallback(
+    () => bottomSheetModalRef.current?.dismiss(),
+    []
+  );
+  const openCalendar = useCallback(
+    () => bottomSheetModalRef.current?.present(),
+    []
+  );
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        pressBehavior="close"
+      />
     ),
     []
   );
@@ -103,75 +79,98 @@ export default function RegistrationScreen() {
     });
   }, []);
 
-  // ===== ANIMATED NOISE =====
-  const noiseOpacity = useSharedValue(0.35);
-  React.useEffect(() => {
-    noiseOpacity.value = withRepeat(withTiming(0.5, { duration: 3000, easing: Easing.linear }), -1, true);
+  // Сохраняем анимацию шума, но сделаем непрозрачность более тонкой для соответствия дизайну
+  const noiseOpacity = useSharedValue(0.1); 
+  useEffect(() => {
+    noiseOpacity.value = withRepeat(
+      withTiming(0.2, { duration: 5000, easing: Easing.linear }),
+      -1,
+      true
+    );
   }, []);
-  const noiseAnimatedStyle = useAnimatedStyle(() => ({ opacity: noiseOpacity.value }));
+  const noiseAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: noiseOpacity.value,
+  }));
+
+  const handleContinue = async () => {
+    if (!date) return;
+
+    try {
+      await AsyncStorage.setItem('user_start_date', date);
+      await Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success
+      );
+      navigation.replace('Main');
+    } catch (e) {
+      console.error('Ошибка при сохранении даты:', e);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* LAVA LAMP BACKGROUND */}
-      <Animated.View style={styles.lavaContainer} pointerEvents="none">
-        <LavaBlob size={340} startX={-120} startY={120} colors={['#FFD1A1', '#FF9A9E']} />
-        <LavaBlob size={280} startX={width - 180} startY={height * 0.45} colors={['#E2D1C3', '#FAD0C4']} />
-        <LavaBlob size={220} startX={60} startY={height * 0.7} colors={['#FBC2EB', '#A6C1EE']} />
-      </Animated.View>
+      <StatusBar barStyle="dark-content" />
 
-      {/* LINEAR GRADIENT */}
-      <LinearGradient colors={['#FDFCFB', '#F2E2D2', '#E2D1C3']} style={StyleSheet.absoluteFill} pointerEvents="none" />
-
-      {/* ANIMATED NOISE */}
+      {/* Анимированный шум — заменен на более тонкую текстуру, как в дизайне */}
       <Animated.Image
-        source={{ uri: 'https://www.transparenttextures.com/patterns/noisy-net.png' }}
+        source={{ uri: 'https://www.transparenttextures.com/patterns/microfabrics.png' }} 
         resizeMode="repeat"
         style={[styles.noiseOverlay, noiseAnimatedStyle]}
+        pointerEvents="none"
       />
 
       <View style={styles.content}>
-        <Text style={styles.appName}>LOVE APP</Text>
-        <View style={styles.centerBlock}>
-          <Text style={styles.mainTitle}>Начало истории</Text>
-          <View style={styles.glassWrapper}>
-            <BlurView intensity={90} tint="light" style={styles.liquidGlassCard}>
-              <Text style={styles.label}>ДАТА НАЧАЛА ОТНОШЕНИЙ</Text>
-              <Pressable
-                style={({ pressed }) => [styles.dateSelectBtn, pressed && { opacity: 0.7 }]}
-                onPress={openCalendar}
-              >
-                <Text style={styles.dateSelectText}>{date ? displayDate(date) : 'Выбрать дату'}</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.continueBtn,
-                  !date && styles.disabledBtn,
-                  pressed && date && { transform: [{ scale: 0.98 }] },
-                ]}
-                disabled={!date}
-                onPress={() => { 
-                  if (date) {
-                    hapticLightImpact();
-                    // navigate to the route name that exists in your navigator
-                    navigation.navigate('LoveSpace', { startDate: date });
-                  }
-                }}
-              >
-                <Text style={styles.continueText}>Продолжить</Text>
-                <Ionicons name="arrow-forward" size={20} color={date ? '#FFF' : '#AAA'} />
-              </Pressable>
-            </BlurView>
+        {/* Верхний мета-текст — Технический, моноширинный */}
+        <Text style={styles.appName}>01 // ARCHIVE GENESIS</Text>
+
+        <View style={styles.mainGroup}>
+          {/* Главный заголовок — Огромный, жирный, черный */}
+          <Text style={styles.mainTitle}>Когда всё началось?</Text>
+
+          {/* Центральный блок выбора даты — Простой, без фона и размытия */}
+          <View style={styles.dateBlock}>
+            <Text style={styles.label}>ДАТА НАЧАЛА ОТНОШЕНИЙ</Text>
+
+            {/* Кнопка выбора даты: стилизована как белая кнопка с контуром */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.dateSelectBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={openCalendar}
+            >
+              <Text style={styles.dateSelectText}>
+                {date ? displayDate(date) : 'Выбрать дату'}
+              </Text>
+            </Pressable>
           </View>
         </View>
 
-        <Pressable style={styles.partnerCodeBtn} onPress={() => navigation.navigate('PartnerScreen')}>
-          <BlurView intensity={30} tint="default" style={styles.partnerBlur}>
-            <Text style={styles.partnerText}>У меня есть код партнера</Text>
-          </BlurView>
-        </Pressable>
+        {/* Группа кнопок внизу — Горизонтальная, как на изображении */}
+        <View style={styles.buttonGroup}>
+          {/* Левая кнопка — Главная, черная, стадионная. Это кнопка продолжения. */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.continueBtn,
+              !date && styles.disabledBtn,
+              pressed && date && { transform: [{ scale: 0.98 }] },
+            ]}
+            disabled={!date}
+            onPress={handleContinue}
+          >
+            <Text style={styles.continueText}>Сохранить</Text>
+            {/* Иконку удаляем, в дизайне ее нет */}
+          </Pressable>
+
+          {/* Правая кнопка — Вспомогательная, белая с контуром, стадионная. Кнопка партнерского кода. */}
+          <Pressable
+            style={styles.partnerCodeBtn}
+            onPress={() => navigation.navigate('PartnerScreen')}
+          >
+            <Text style={styles.partnerText}>Партнерский код</Text>
+          </Pressable>
+        </View>
       </View>
 
-      {/* BOTTOM SHEET */}
       <BottomSheetModal
         ref={bottomSheetModalRef}
         index={0}
@@ -183,26 +182,20 @@ export default function RegistrationScreen() {
       >
         <BottomSheetView style={styles.sheetContent}>
           <Text style={styles.modalTitle}>Когда всё началось?</Text>
+
           <Calendar
-            onDayPress={(day) => { setDate(day.dateString); hapticSelection(); }}
-            markedDates={date ? { [date]: { selected: true, selectedColor: '#FF9A9E' } } : {}}
-            maxDate={todayStr}
-            theme={{
-              backgroundColor: 'transparent',
-              calendarBackground: 'transparent',
-              textSectionTitleColor: '#999',
-              selectedDayBackgroundColor: '#FF9A9E',
-              selectedDayTextColor: '#ffffff',
-              todayTextColor: '#FF9A9E',
-              dayTextColor: '#2d4150',
-              textDisabledColor: '#d9e1e8',
-              arrowColor: '#FF9A9E',
-              monthTextColor: '#111',
-              textDayFontWeight: '500',
-              textMonthFontWeight: '700',
-              textDayHeaderFontWeight: '600',
+            onDayPress={(day: any) => {
+              setDate(day.dateString);
+              hapticSelection();
             }}
+            markedDates={
+              date
+                ? { [date]: { selected: true, selectedColor: '#000000' } } // Изменяем цвет выделения на черный
+                : {}
+            }
+            maxDate={todayStr}
           />
+
           <Pressable style={styles.modalConfirmBtn} onPress={closeCalendar}>
             <Text style={styles.modalConfirmText}>Готово</Text>
           </Pressable>
@@ -213,31 +206,84 @@ export default function RegistrationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 30, justifyContent: 'space-between', paddingVertical: 80, zIndex: 2 },
-  appName: { fontSize: 12, fontWeight: '900', color: 'rgba(0,0,0,0.25)', letterSpacing: 4, textAlign: 'center' },
-  centerBlock: { alignItems: 'center', width: '100%' },
-  mainTitle: { fontSize: 28, fontWeight: '200', color: '#1a1a1a', marginBottom: 40 },
-  glassWrapper: { width: '100%', borderRadius: 45, overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)' },
-  liquidGlassCard: { width: '100%', padding: 30, alignItems: 'center' },
-  label: { fontSize: 10, fontWeight: '800', color: 'rgba(0,0,0,0.3)', letterSpacing: 2, marginBottom: 20 },
-  dateSelectBtn: { width: '100%', backgroundColor: 'rgba(255,255,255,0.5)', paddingVertical: 18, borderRadius: 22, alignItems: 'center', marginBottom: 15 },
-  dateSelectText: { fontSize: 16, color: '#333' },
-  continueBtn: { width: '100%', paddingVertical: 18, borderRadius: 22, backgroundColor: '#2e1e00', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' }, // Чисто белый фон
+  content: { flex: 1, paddingHorizontal: 30, justifyContent: 'space-between', paddingVertical: 80, zIndex: 5 },
+  appName: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Courier', // Моноширинный стиль
+    color: '#000000',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  mainGroup: { alignItems: 'flex-start', width: '100%', paddingBottom: 60 },
+  mainTitle: {
+    fontSize: 56, // Огромный шрифт
+    fontWeight: '900', // Очень жирный
+    color: '#000000',
+    lineHeight: 64,
+    marginBottom: 60,
+  },
+  dateBlock: { width: '100%' },
+  label: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Courier', // Моноширинный стиль
+    color: 'rgba(0,0,0,0.3)',
+    letterSpacing: 2,
+    marginBottom: 15,
+  },
+  dateSelectBtn: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 18,
+    borderRadius: 999, // Полностью скругленная стадионная форма
+    borderWidth: 1.5,
+    borderColor: '#000000', // Черный контур
+    alignItems: 'center',
+    marginBottom: 0,
+  },
+  dateSelectText: { fontSize: 16, fontWeight: '600', color: '#000000' },
+
+  buttonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    // Позиционируем кнопки внизу
+    position: 'absolute',
+    bottom: 40,
+    left: 30,
+    right: 30,
+  },
+  continueBtn: {
+    width: '48%',
+    paddingVertical: 20,
+    borderRadius: 999, // Стадионная форма
+    backgroundColor: '#000000', // Полностью черная кнопка
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   disabledBtn: { backgroundColor: 'rgba(0,0,0,0.1)' },
-  continueText: { color: '#FFF', fontSize: 17, fontWeight: '700', marginRight: 10 },
-  partnerCodeBtn: { borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
-  partnerBlur: { paddingVertical: 18, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
-  partnerText: { fontSize: 14, color: '#444', fontWeight: '600' },
+  continueText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', marginRight: 0 },
+
+  partnerCodeBtn: {
+    width: '48%',
+    paddingVertical: 20,
+    borderRadius: 999, // Стадионная форма
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.15)', // Тонкий контур
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  partnerText: { fontSize: 14, color: '#000000', fontWeight: '600' },
+
   sheetBackground: { backgroundColor: '#FFF', borderTopLeftRadius: 40, borderTopRightRadius: 40 },
   sheetContent: { flex: 1, padding: 24 },
   handle: { backgroundColor: 'rgba(0,0,0,0.1)', width: 40 },
   modalTitle: { fontSize: 20, fontWeight: '400', textAlign: 'center', marginBottom: 20, color: '#333' },
   modalConfirmBtn: { marginTop: 20, paddingVertical: 18, borderRadius: 22, backgroundColor: '#111', alignItems: 'center' },
   modalConfirmText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-
-  // ===== LAVA LAMP & NOISE =====
-  lavaContainer: { ...StyleSheet.absoluteFillObject, zIndex: 0, overflow: 'hidden' },
-  blob: { position: 'absolute', opacity: 0.65, filter: 'blur(70px)' },
-  noiseOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2, tintColor: '#000', mixBlendMode: 'overlay' },
+  noiseOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 4, opacity: 0.1 }, // Снижена непрозрачность для более тонкого эффекта
 });
